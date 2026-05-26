@@ -39,12 +39,26 @@ Test images (expected output)
 How it works
 ------------
   1. Loads the JPEG as a System.Drawing.Bitmap.
-  2. Reads raw pixel bytes via LockBits (32bppArgb) for efficient access.
-  3. For each column, computes perceptual brightness per pixel using the
-     ITU-R BT.601 luma formula: brightness = 0.299*R + 0.587*G + 0.114*B
-  4. Marks a column as "dark" when enough pixels fall below the brightness
-     threshold (accommodates JPEG compression artifacts near hard edges).
-  5. Counts contiguous runs of dark columns — each run is one vertical line.
+
+  2. Reads all pixel data at once into a byte array using LockBits.
+     This is much faster than reading one pixel at a time.
+
+  3. Loops through pixels row by row (left to right, top to bottom).
+     This order matches how pixels are laid out in memory, so the CPU
+     can read them efficiently without jumping around.
+
+  4. For each pixel, computes a single brightness value using the
+     Perceived Luminance formula (Option 1):
+       brightness = 0.299*R + 0.587*G + 0.114*B
+     Green is weighted the most because the human eye sees it best.
+     Source: https://stackoverflow.com/questions/596216/formula-to-determine-perceived-brightness-of-rgb-color
+
+  5. A column is marked as a "line column" if at least 5% of its pixels
+     are below the brightness threshold.
+
+  6. Walks left to right across all columns and counts how many times
+     we go from a light column into a dark one — each entry is one line.
+     Wide lines still count as one because we only count the entry point.
 
 
 Problems I ran into while building VerticalLineCounter
